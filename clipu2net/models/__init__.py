@@ -1,0 +1,1 @@
+from .clipu2net import CLIPU2Net
