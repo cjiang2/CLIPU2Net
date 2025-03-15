@@ -215,6 +215,7 @@ class MiniU2Net(nn.Module):
         n_channels: int = 64,
         d_model: int = None,
         vision_patch_size: int = 16,
+        coarse: bool = False,
         ):
         super().__init__()
         self.n_channels = n_channels
@@ -225,33 +226,35 @@ class MiniU2Net(nn.Module):
             self.proj_d = nn.Conv2d(d_model, n_channels, 1, bias=False)
 
         # Coarse: 1x1 ConvTranspose head
+        self.coarse = coarse
         self.side4 = nn.ConvTranspose2d(n_channels, 1, vision_patch_size, stride=vision_patch_size)
         # print(vision_patch_size)
         # print(self.side4.weight.data.shape)
 
-        self.conv_in = U2netBasicBlock(3, n_channels, 3, stride=2)
-        self.enc1 = RSU5(n_channels, n_channels // 4, n_channels, bias=True)
-        self.pool1 = nn.MaxPool2d(2, stride=2, ceil_mode=True)
-        self.prup1 = PrUp(n_channels, n_channels)
+        if not coarse:
+            self.conv_in = U2netBasicBlock(3, n_channels, 3, stride=2)
+            self.enc1 = RSU5(n_channels, n_channels // 4, n_channels, bias=True)
+            self.pool1 = nn.MaxPool2d(2, stride=2, ceil_mode=True)
+            self.prup1 = PrUp(n_channels, n_channels)
 
-        self.enc2 = RSU4(n_channels, n_channels // 4, n_channels, bias=True)
-        self.pool2 = nn.MaxPool2d(2, stride=2, ceil_mode=True)
-        self.prup2 = PrUp(n_channels, n_channels)
+            self.enc2 = RSU4(n_channels, n_channels // 4, n_channels, bias=True)
+            self.pool2 = nn.MaxPool2d(2, stride=2, ceil_mode=True)
+            self.prup2 = PrUp(n_channels, n_channels)
 
-        self.enc3 = RSU4F(n_channels, n_channels // 4, n_channels, bias=True)
-        self.prup3 = PrUp(n_channels, n_channels)
+            self.enc3 = RSU4F(n_channels, n_channels // 4, n_channels, bias=True)
+            self.prup3 = PrUp(n_channels, n_channels)
 
-        # Decoders
-        self.dec3 = RSU4F(2 * n_channels, n_channels // 4, n_channels, bias=True)
-        self.side3 = nn.ConvTranspose2d(n_channels, 1, vision_patch_size // 2, stride=vision_patch_size // 2)
+            # Decoders
+            self.dec3 = RSU4F(2 * n_channels, n_channels // 4, n_channels, bias=True)
+            self.side3 = nn.ConvTranspose2d(n_channels, 1, vision_patch_size // 2, stride=vision_patch_size // 2)
 
-        self.dec2 = RSU4(2 * n_channels, n_channels // 4, n_channels, bias=True)
-        self.side2 = nn.ConvTranspose2d(n_channels, 1, vision_patch_size // 4, stride=vision_patch_size // 4)
+            self.dec2 = RSU4(2 * n_channels, n_channels // 4, n_channels, bias=True)
+            self.side2 = nn.ConvTranspose2d(n_channels, 1, vision_patch_size // 4, stride=vision_patch_size // 4)
 
-        self.dec1 = RSU5(2 * n_channels, n_channels // 4, n_channels, bias=True)
-        self.side1 = nn.ConvTranspose2d(n_channels, 1, vision_patch_size // 8, stride=vision_patch_size // 8)
+            self.dec1 = RSU5(2 * n_channels, n_channels // 4, n_channels, bias=True)
+            self.side1 = nn.ConvTranspose2d(n_channels, 1, vision_patch_size // 8, stride=vision_patch_size // 8)
 
-        self.outconv = nn.Conv2d(4, 1, 1)
+            self.outconv = nn.Conv2d(4, 1, 1)
 
     def forward(
         self,
@@ -262,6 +265,8 @@ class MiniU2Net(nn.Module):
 
         # Coarse head
         s4 = self.side4(skip[-1])
+        if self.coarse:
+            return [s4]
         # print("s4:", s4.shape)
         
         # U^2Net Encoding

@@ -71,6 +71,7 @@ class CLIPU2Net(nn.Module):
         input_resolution: int = 336,
         n_layers_multimodal: int = 8,
         device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        coarse_saliency: bool = False,
         ):
         super().__init__()
         self.name = name
@@ -111,6 +112,7 @@ class CLIPU2Net(nn.Module):
         self.saliency = MiniU2Net(
             d_model=d_model, n_channels=64, 
             vision_patch_size=self.clip.visual.patch_size,
+            coarse=coarse_saliency,
             )
 
     def proj_feat(self, x):
@@ -176,6 +178,9 @@ class CLIPU2Net(nn.Module):
         d1 = self.blocks["d1"](d2 + x1)
         
         # Saliency map
+        if self.saliency.coarse:
+            return self.saliency(imgs, [self.proj_feat(d1)])
+
         skip = [
             self.proj_feat(d1),
             self.proj_feat(d2),
